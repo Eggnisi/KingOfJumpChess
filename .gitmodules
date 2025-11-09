@@ -1,0 +1,3 @@
+[submodule "Assets/Plugins/EggFramework"]
+	path = Assets/Plugins/EggFramework
+	url = https://github.com/Eggnisi/EggFramework.git
