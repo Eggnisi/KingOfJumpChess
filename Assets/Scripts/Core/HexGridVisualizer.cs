@@ -62,17 +62,17 @@ namespace KOJC.Core
         }
 
         // 公共方法，可以从其他脚本调用
-        public Vector2 GetWorldPosition(HexGridSystem.HexCoord hexCoord)
+        public Vector2 GetWorldPosition(HexCoord hexCoord)
         {
             return hexGrid.HexCoordToWorld(hexCoord);
         }
 
-        public HexGridSystem.HexCoord GetHexCoord(Vector2 worldPos)
+        public HexCoord GetHexCoord(Vector2 worldPos)
         {
             return hexGrid.WorldToHexCoord(worldPos);
         }
 
-        public (HexGridSystem.HexCoord hexCoord, Vector2 relativePos) GetHexWithRelative(Vector2 worldPos)
+        public (HexCoord hexCoord, Vector2 relativePos) GetHexWithRelative(Vector2 worldPos)
         {
             return hexGrid.WorldToHexWithRelative(worldPos);
         }

@@ -11,96 +11,98 @@ using UnityEngine;
 
 namespace KOJC.Core
 {
+    // 六边形坐标系统（立方坐标q, r, s）
+    [Serializable]
+    public struct HexCoord
+    {
+        public          int      q;
+        public          int      r;
+        public readonly int      s         => -q - r;
+        public readonly HexCoord East      => new(q + 1, r);
+        public readonly HexCoord SouthEast => new(q + 1, r - 1);
+        public readonly HexCoord SouthWest => new(q, r - 1);
+        public readonly HexCoord West      => new(q - 1, r);
+        public readonly HexCoord NorthWest => new(q - 1, r + 1);
+        public readonly HexCoord NorthEast => new(q, r + 1);
+
+        public HexCoord(int q, int r)
+        {
+            this.q = q;
+            this.r = r;
+        }
+
+        public static HexCoord operator +(HexCoord a, HexCoord b) => new HexCoord(a.q + b.q, a.r + b.r);
+        public static HexCoord operator -(HexCoord a, HexCoord b) => new HexCoord(a.q - b.q, a.r - b.r);
+        public static bool operator ==(HexCoord a, HexCoord b) => a.q == b.q && a.r == b.r;
+        public static bool operator !=(HexCoord a, HexCoord b) => !(a == b);
+
+        public override bool Equals(object obj)
+        {
+            if (obj is HexCoord other)
+                return this == other;
+            return false;
+        }
+
+        public override int GetHashCode() => (q, r).GetHashCode();
+        public override string ToString() => $"({q}, {r}, {s})";
+
+        public readonly HexCoord[] GetNeighbors() =>
+            new[] { East, SouthEast, SouthWest, West, NorthWest, NorthEast };
+
+        // 获取相邻的六边形坐标和方向
+        public readonly HexCoordWithDirection[] GetNeighborsWithDirection()
+        {
+            return new HexCoordWithDirection[]
+            {
+                new(new HexCoord(q + 1, r), HexDirection.East),          // 右
+                new(new HexCoord(q + 1, r - 1), HexDirection.SouthEast), // 右下
+                new(new HexCoord(q,     r - 1), HexDirection.SouthWest), // 左下
+                new(new HexCoord(q - 1, r), HexDirection.West),          // 左
+                new(new HexCoord(q - 1, r + 1), HexDirection.NorthWest), // 左上
+                new(new HexCoord(q,     r + 1), HexDirection.NorthEast)  // 右上
+            };
+        }
+
+        // 计算到另一个六边形的距离
+        public readonly int DistanceTo(HexCoord other) =>
+            (Mathf.Abs(q - other.q) + Mathf.Abs(r - other.r) + Mathf.Abs(s - other.s)) / 2;
+    }
+
+    // 六边形坐标和方向的配对结构
+    [Serializable]
+    public struct HexCoordWithDirection
+    {
+        public HexCoord     coord;
+        public HexDirection direction;
+
+        public HexCoordWithDirection(HexCoord coord, HexDirection direction)
+        {
+            this.coord     = coord;
+            this.direction = direction;
+        }
+
+        public override string ToString() => $"{coord} in {direction}";
+    }
+
+
+    // 六边形方向枚举（基于PointyTop尖顶朝上的方向）
+    public enum HexDirection
+    {
+        Invalid   = -1,
+        East      = 0, // 右
+        SouthEast = 1, // 右下
+        SouthWest = 2, // 左下
+        West      = 3, // 左
+        NorthWest = 4, // 左上
+        NorthEast = 5  // 右上
+    }
+
     [Serializable]
     public class HexGridSystem
     {
         [SerializeField] private float   hexSize    = 1f;
         [SerializeField] private Vector2 gridCenter = Vector2.zero;
 
-        // 六边形方向枚举（基于PointyTop尖顶朝上的方向）
-        public enum HexDirection
-        {
-            Invalid   = -1,
-            East      = 0, // 右
-            SouthEast = 1, // 右下
-            SouthWest = 2, // 左下
-            West      = 3, // 左
-            NorthWest = 4, // 左上
-            NorthEast = 5  // 右上
-        }
-
-        // 六边形坐标和方向的配对结构
-        [Serializable]
-        public struct HexCoordWithDirection
-        {
-            public HexCoord     coord;
-            public HexDirection direction;
-
-            public HexCoordWithDirection(HexCoord coord, HexDirection direction)
-            {
-                this.coord     = coord;
-                this.direction = direction;
-            }
-
-            public override string ToString() => $"{coord} in {direction}";
-        }
-
-        // 六边形坐标系统（立方坐标q, r, s）
-        [Serializable]
-        public struct HexCoord
-        {
-            public          int      q;
-            public          int      r;
-            public readonly int      s         => -q - r;
-            public readonly HexCoord East      => new(q + 1, r);
-            public readonly HexCoord SouthEast => new(q + 1, r - 1);
-            public readonly HexCoord SouthWest => new(q, r - 1);
-            public readonly HexCoord West      => new(q - 1, r);
-            public readonly HexCoord NorthWest => new(q - 1, r + 1);
-            public readonly HexCoord NorthEast => new(q, r + 1);
-
-            public HexCoord(int q, int r)
-            {
-                this.q = q;
-                this.r = r;
-            }
-
-            public static HexCoord operator +(HexCoord a, HexCoord b) => new HexCoord(a.q + b.q, a.r + b.r);
-            public static HexCoord operator -(HexCoord a, HexCoord b) => new HexCoord(a.q - b.q, a.r - b.r);
-            public static bool operator ==(HexCoord a, HexCoord b) => a.q == b.q && a.r == b.r;
-            public static bool operator !=(HexCoord a, HexCoord b) => !(a == b);
-
-            public override bool Equals(object obj)
-            {
-                if (obj is HexCoord other)
-                    return this == other;
-                return false;
-            }
-
-            public override int GetHashCode() => (q, r).GetHashCode();
-            public override string ToString() => $"({q}, {r}, {s})";
-
-            public readonly HexCoord[] GetNeighbors() =>
-                new[] { East, SouthEast, SouthWest, West, NorthWest, NorthEast };
-
-            // 获取相邻的六边形坐标和方向
-            public readonly HexCoordWithDirection[] GetNeighborsWithDirection()
-            {
-                return new HexCoordWithDirection[]
-                {
-                    new(new HexCoord(q + 1, r), HexDirection.East),          // 右
-                    new(new HexCoord(q + 1, r - 1), HexDirection.SouthEast), // 右下
-                    new(new HexCoord(q,     r - 1), HexDirection.SouthWest), // 左下
-                    new(new HexCoord(q - 1, r), HexDirection.West),          // 左
-                    new(new HexCoord(q - 1, r + 1), HexDirection.NorthWest), // 左上
-                    new(new HexCoord(q,     r + 1), HexDirection.NorthEast)  // 右上
-                };
-            }
-
-            // 计算到另一个六边形的距离
-            public readonly int DistanceTo(HexCoord other) =>
-                (Mathf.Abs(q - other.q) + Mathf.Abs(r - other.r) + Mathf.Abs(s - other.s)) / 2;
-        }
 
         public HexGridSystem(float hexSize = 1f, Vector2 gridCenter = default)
         {
@@ -331,7 +333,7 @@ namespace KOJC.Core
         {
             Vector2   center   = HexCoordToWorld(hexCoord);
             Vector2[] vertices = new Vector2[6];
-    
+
             // PointyTop模式：尖顶朝上，角度从30度开始
             for (int i = 0; i < 6; i++)
             {
@@ -342,7 +344,7 @@ namespace KOJC.Core
                     hexSize * Mathf.Sin(angle)
                 );
             }
-    
+
             return vertices;
         }
 
@@ -352,7 +354,7 @@ namespace KOJC.Core
         public Rect GetHexBounds(HexCoord hexCoord)
         {
             Vector2 center = HexCoordToWorld(hexCoord);
-    
+
             // PointyTop模式：宽度为√3 * 边长，高度为2 * 边长
             float width  = hexSize * Mathf.Sqrt(3);
             float height = hexSize * 2;
@@ -366,6 +368,7 @@ namespace KOJC.Core
         }
 
         #endregion
+
         #region Gizmos绘制方法
 
         /// <summary>
@@ -421,7 +424,7 @@ namespace KOJC.Core
         private void DrawHexGizmos(HexCoord hex)
         {
             Vector2[] vertices = GetHexVertices(hex);
-    
+
             // 绘制六边形边线
             for (int i = 0; i < 6; i++)
             {
@@ -434,16 +437,16 @@ namespace KOJC.Core
         private void DrawHexCoordLabel(HexCoord hex)
         {
             Vector2 center = HexCoordToWorld(hex);
-    
+
             // 创建坐标标签文本
             string label = $"({hex.q},{hex.r})";
-    
+
             // 设置标签样式
             GUIStyle style = new GUIStyle();
             style.normal.textColor = Color.yellow;
             style.fontSize         = 10;
             style.alignment        = TextAnchor.MiddleCenter;
-    
+
             // 在Scene视图中绘制标签
             UnityEditor.Handles.Label(center, label, style);
         }
