@@ -25,6 +25,98 @@ namespace KOJC.Core
         [ShowIf("@UnityEngine.Application.isPlaying"), ShowInInspector, LabelText("网格运行时数据")]
         private Dictionary<HexCoord, HexCell> gridCells = new();
 
+
+        #region 边界计算属性
+
+        /// <summary>
+        /// 获取所有网格的中心点（所有网格坐标的质心）
+        /// </summary>
+        [ShowInInspector]
+        public Vector2 GridCentroid
+        {
+            get
+            {
+                if (gridCells.Count == 0)
+                    return gridSystem?.GridCenter ?? Vector2.zero;
+
+                Vector2 sum = Vector2.zero;
+                foreach (var cell in gridCells.Values)
+                {
+                    sum += GetWorldPosition(cell.Coord);
+                }
+
+                return sum / gridCells.Count;
+            }
+        }
+
+        /// <summary>
+        /// 获取能囊括所有网格的最小矩形尺寸
+        /// </summary>
+        [ShowInInspector]
+        public Vector2 GridBoundsSize
+        {
+            get
+            {
+                if (gridCells.Count == 0)
+                    return Vector2.zero;
+
+                float minX = float.MaxValue;
+                float maxX = float.MinValue;
+                float minY = float.MaxValue;
+                float maxY = float.MinValue;
+
+                foreach (var cell in gridCells.Values)
+                {
+                    Vector2   worldPos = GetWorldPosition(cell.Coord);
+                    Vector2[] vertices = gridSystem.GetHexVertices(cell.Coord);
+
+                    // 检查六边形的所有顶点，找到真正的边界
+                    foreach (Vector2 vertex in vertices)
+                    {
+                        minX = Mathf.Min(minX, vertex.x);
+                        maxX = Mathf.Max(maxX, vertex.x);
+                        minY = Mathf.Min(minY, vertex.y);
+                        maxY = Mathf.Max(maxY, vertex.y);
+                    }
+                }
+
+                return new Vector2(maxX - minX, maxY - minY);
+            }
+        }
+
+        /// <summary>
+        /// 获取网格的边界矩形（基于网格中心点计算，更高效但可能不够精确）
+        /// </summary>
+        [ShowInInspector]
+        public Rect GridBoundsRect
+        {
+            get
+            {
+                if (gridCells.Count == 0)
+                    return new Rect(gridSystem?.GridCenter ?? Vector2.zero, Vector2.zero);
+
+                float minX = float.MaxValue;
+                float maxX = float.MinValue;
+                float minY = float.MaxValue;
+                float maxY = float.MinValue;
+
+                foreach (var cell in gridCells.Values)
+                {
+                    Vector2 worldPos = GetWorldPosition(cell.Coord);
+                    minX = Mathf.Min(minX, worldPos.x);
+                    maxX = Mathf.Max(maxX, worldPos.x);
+                    minY = Mathf.Min(minY, worldPos.y);
+                    maxY = Mathf.Max(maxY, worldPos.y);
+                }
+
+                Vector2 pos  = new Vector2(minX,        minY);
+                Vector2 size = new Vector2(maxX - minX, maxY - minY);
+                return new Rect(pos, size);
+            }
+        }
+
+        #endregion
+
         public event Action<HexGridData>      OnGridDataLoaded;
         public event Action<HexCell>          OnCellCreated;
         public event Action<HexCell>          OnCellRemoved;
@@ -43,6 +135,10 @@ namespace KOJC.Core
             currentGridData = gridData;
             InitializeFromData(gridData);
             OnGridDataLoaded?.Invoke(gridData);
+
+            // 临时代码
+            FindObjectOfType<Camera>().transform.position = new Vector3(GridBoundsRect.center.x,
+                GridBoundsRect.center.y, FindObjectOfType<Camera>().transform.position.z);
         }
 
         public void UnloadGridData()
@@ -57,6 +153,7 @@ namespace KOJC.Core
         {
             transform.DestroyChildImmediately();
         }
+
         private void InitializeFromData(HexGridData gridData)
         {
             ClearChild();
@@ -66,9 +163,10 @@ namespace KOJC.Core
             // 从SO数据创建格子
             foreach (var cellData in gridData.Cells)
             {
-                HexCell cell = CreateCell(cellData.coord, Instantiate(cellData.Prefab, transform));
-
+                HexCell cell       = CreateCell(cellData, Instantiate(cellData.Prefab, transform));
+                var     controller = cell.Obj.GetComponent<HexCellController>();
                 cell.Obj.transform.position = GetWorldPosition(cellData.coord);
+                controller.Init(cell);
                 // 复制Tag数据
                 cell.Tags.Clear();
                 foreach (string tag in cellData.tags)
@@ -82,16 +180,22 @@ namespace KOJC.Core
 
         #region Cell管理方法
 
-        public HexCell CreateCell(HexCoord coord, GameObject obj)
+        public HexCell CreateCell(HexGridData.CellData data, GameObject obj)
         {
-            if (gridCells.ContainsKey(coord))
+            var coord = data.coord;
+            if (gridCells.TryGetValue(coord, out var cell))
             {
                 Debug.LogWarning($"Cell at {coord} already exists");
-                return gridCells[coord];
+                return cell;
             }
 
             HexCell newCell = new HexCell(coord, obj);
             gridCells[coord] = newCell;
+
+            foreach (var dataTag in data.tags)
+            {
+                newCell.Tags.Add(dataTag);
+            }
 
             OnCellCreated?.Invoke(newCell);
             return newCell;
@@ -99,9 +203,8 @@ namespace KOJC.Core
 
         public bool RemoveCell(HexCoord coord)
         {
-            if (gridCells.TryGetValue(coord, out HexCell cell))
+            if (gridCells.Remove(coord, out var cell))
             {
-                gridCells.Remove(coord);
                 OnCellRemoved?.Invoke(cell);
                 return true;
             }
